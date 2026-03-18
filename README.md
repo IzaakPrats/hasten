@@ -2,6 +2,8 @@
 
 **Multi-threaded AI conversation** — A chat interface powered by Claude (Anthropic) with support for branching sub-threads on specific parts of assistant responses. Stream responses, persist conversations in PostgreSQL, and drill into sections with follow-up threads.
 
+**[GitHub](https://github.com/IzaakPrats/hasten)**
+
 ---
 
 ## Features
@@ -40,8 +42,8 @@
 ### 1. Clone and install
 
 ```bash
-git clone <repo-url>
-cd new
+git clone https://github.com/IzaakPrats/hasten.git
+cd hasten
 pnpm install
 ```
 
