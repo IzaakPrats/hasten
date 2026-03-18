@@ -11,6 +11,8 @@ interface MessageListProps {
   messages: MessageWithSections[];
   streamingMessageId: string | null;
   streamingSections: Map<string, StreamingSection>;
+  /** Show typing indicator while waiting for first response (e.g. creating conversation or before first chunk) */
+  isWaitingForResponse?: boolean;
   onOpenThread?: (
     sectionId: string,
     content: string,
@@ -22,6 +24,7 @@ export function MessageList({
   messages,
   streamingMessageId,
   streamingSections,
+  isWaitingForResponse = false,
   onOpenThread,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -32,9 +35,10 @@ export function MessageList({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, streamingSections]);
+  }, [messages, streamingSections, isWaitingForResponse]);
 
-  const isEmpty = messages.length === 0 && !streamingMessageId;
+  const showStreamingBlock = streamingMessageId != null || isWaitingForResponse;
+  const isEmpty = messages.length === 0 && !showStreamingBlock;
 
   return (
     <div className="flex-1 overflow-y-auto" ref={scrollRef}>
@@ -110,42 +114,42 @@ export function MessageList({
             </div>
           </div>
         ))}
-        {streamingMessageId && (
+        {showStreamingBlock && (
           <div className="flex flex-col items-start">
             <div className="group relative flex w-full max-w-[50%] flex-col gap-0 space-y-1 pt-8">
-              {streamingSections.size > 0 && (
-                <div className="absolute right-0 top-0 z-10 opacity-70 group-hover:opacity-100">
-                  <CopyButton
-                    text={Array.from(streamingSections.values())
-                      .sort((a, b) => a.order - b.order)
-                      .map((s) => (s.title ? s.title + "\n\n" + s.content : s.content))
-                      .join("\n\n")}
-                    size="icon"
-                    className="h-7 w-7"
-                    label="Copy response"
-                  />
-                </div>
-              )}
-              {streamingSections.size === 0 ? (
+              {streamingSections.size > 0 ? (
+                <>
+                  <div className="absolute right-0 top-0 z-10 opacity-70 group-hover:opacity-100">
+                    <CopyButton
+                      text={Array.from(streamingSections.values())
+                        .sort((a, b) => a.order - b.order)
+                        .map((s) => (s.title ? s.title + "\n\n" + s.content : s.content))
+                        .join("\n\n")}
+                      size="icon"
+                      className="h-7 w-7"
+                      label="Copy response"
+                    />
+                  </div>
+                  {Array.from(streamingSections.values())
+                    .sort((a, b) => a.order - b.order)
+                    .map((s) => (
+                      <SectionCard
+                        key={s.id}
+                        type={s.type}
+                        title={s.title}
+                        content={s.content}
+                      />
+                    ))}
+                </>
+              ) : (
                 <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
                   <span className="inline-flex gap-0.5">
                     <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:0ms]" />
                     <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:200ms]" />
                     <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:400ms]" />
                   </span>
-                  <span>Thinking</span>
+                  <span>{streamingMessageId != null ? "Thinking" : "Waiting for response…"}</span>
                 </div>
-              ) : (
-                Array.from(streamingSections.values())
-                  .sort((a, b) => a.order - b.order)
-                  .map((s) => (
-                    <SectionCard
-                      key={s.id}
-                      type={s.type}
-                      title={s.title}
-                      content={s.content}
-                    />
-                  ))
               )}
             </div>
           </div>

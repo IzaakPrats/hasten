@@ -1,6 +1,7 @@
 import { anthropic } from "./anthropic";
 
-const TITLE_MODEL = "claude-3-5-haiku-20241022";
+/** Fallback when no model provided; must be a valid Anthropic model id. */
+const DEFAULT_TITLE_MODEL = "claude-sonnet-4-20250514";
 
 export async function generateConversationTitle(
   firstUserContent: string,
@@ -8,7 +9,7 @@ export async function generateConversationTitle(
 ): Promise<string> {
   const text = `User: ${firstUserContent.slice(0, 500)}\n\nAssistant: ${firstAssistantContent.slice(0, 800)}`;
   const response = await anthropic.messages.create({
-    model: TITLE_MODEL,
+    model: DEFAULT_TITLE_MODEL,
     max_tokens: 30,
     messages: [
       {
@@ -28,7 +29,7 @@ export async function generateConversationTitleFromUserMessage(
 ): Promise<string> {
   const text = firstUserContent.slice(0, 500);
   const response = await anthropic.messages.create({
-    model: TITLE_MODEL,
+    model: DEFAULT_TITLE_MODEL,
     max_tokens: 30,
     messages: [
       {

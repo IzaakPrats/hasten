@@ -18,6 +18,8 @@ export function Sidebar() {
   const conversations = useChatStore((s) => s.conversations);
   const setConversationTitle = useChatStore((s) => s.setConversationTitle);
   const removeConversation = useChatStore((s) => s.removeConversation);
+  const setMessages = useChatStore((s) => s.setMessages);
+  const setActiveConversationId = useChatStore((s) => s.setActiveConversationId);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -87,7 +89,18 @@ export function Sidebar() {
     <aside className="flex w-56 flex-col border-r bg-muted/30">
       <div className="p-2">
         <Button asChild variant="default" size="sm" className="w-full">
-          <Link href="/chat">New Chat</Link>
+          <Link
+            href="/chat"
+            onClick={(e) => {
+              if (pathname === "/chat") {
+                e.preventDefault();
+                setActiveConversationId(null);
+                setMessages([]);
+              }
+            }}
+          >
+            New Chat
+          </Link>
         </Button>
       </div>
       <ScrollArea className="flex-1">

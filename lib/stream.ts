@@ -73,9 +73,15 @@ export interface StreamResult {
   sections: ParsedSectionForDb[];
 }
 
+export interface StreamConversationOptions {
+  /** Run and await before sending the "done" event (e.g. send title first). */
+  beforeDone?: () => Promise<void>;
+}
+
 export async function streamConversationResponse(
   params: StreamConversationParams,
-  write: (chunk: string) => void
+  write: (chunk: string) => void,
+  options?: StreamConversationOptions
 ): Promise<StreamResult> {
   const { conversationId, model, messages } = params;
   const assistantMessageId = uuidv4();
@@ -171,6 +177,8 @@ export async function streamConversationResponse(
     where: { id: conversationId },
     data: { updatedAt: new Date() },
   });
+
+  await options?.beforeDone?.();
 
   write(
     formatSSE("done", {

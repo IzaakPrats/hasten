@@ -29,6 +29,7 @@ export interface UseSSEStreamOptions {
 export function useSSEStream(options: UseSSEStreamOptions) {
   const { conversationId, onCreated } = options;
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
 
   const {
     addUserMessage,
@@ -46,6 +47,7 @@ export function useSSEStream(options: UseSSEStreamOptions) {
     async (content: string) => {
       if (!content.trim() || isStreaming) return;
 
+      setIsWaitingForResponse(true);
       let activeConversationId = conversationId;
       if (!activeConversationId) {
         const createRes = await fetch("/api/conversations", {
@@ -55,6 +57,7 @@ export function useSSEStream(options: UseSSEStreamOptions) {
         });
         if (!createRes.ok) {
           setStreamingError("Failed to create conversation");
+          setIsWaitingForResponse(false);
           return;
         }
         const conv = await createRes.json();
@@ -82,6 +85,7 @@ export function useSSEStream(options: UseSSEStreamOptions) {
       addUserMessage(userMessage);
       setIsStreaming(true);
       startStreaming("streaming");
+      setIsWaitingForResponse(false);
 
       const res = await fetch(
         `/api/conversations/${activeConversationId}/messages`,
@@ -96,6 +100,7 @@ export function useSSEStream(options: UseSSEStreamOptions) {
         const err = await res.json().catch(() => ({}));
         setStreamingError(err.error || "Failed to send message");
         setIsStreaming(false);
+        setIsWaitingForResponse(false);
         return;
       }
 
@@ -103,6 +108,7 @@ export function useSSEStream(options: UseSSEStreamOptions) {
       if (!reader) {
         setStreamingError("No response body");
         setIsStreaming(false);
+        setIsWaitingForResponse(false);
         return;
       }
 
@@ -195,6 +201,7 @@ export function useSSEStream(options: UseSSEStreamOptions) {
         setStreamingError(e instanceof Error ? e.message : "Stream error");
       } finally {
         setIsStreaming(false);
+        setIsWaitingForResponse(false);
       }
     },
     [
@@ -215,5 +222,5 @@ export function useSSEStream(options: UseSSEStreamOptions) {
 
   const error = useChatStore((s) => s.error);
 
-  return { send, isStreaming, error };
+  return { send, isStreaming, isWaitingForResponse, error };
 }

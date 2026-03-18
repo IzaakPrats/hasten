@@ -63,22 +63,14 @@ export async function POST(
 
   const encoder = new TextEncoder();
   const isFirstMessage = conversation.messages.length === 0;
+  const titlePromise = isFirstMessage
+    ? generateConversationTitleFromUserMessage(content)
+    : null;
   const stream = new ReadableStream({
     async start(controller) {
       const write = (chunk: string) => {
         controller.enqueue(encoder.encode(chunk));
       };
-      if (isFirstMessage) {
-        generateConversationTitleFromUserMessage(content)
-          .then(async (title) => {
-            await db.conversation.update({
-              where: { id: conversationId },
-              data: { title },
-            });
-            write(formatSSE("title", { title }));
-          })
-          .catch(() => {});
-      }
       try {
         await streamConversationResponse(
           {
@@ -87,15 +79,30 @@ export async function POST(
             messages: messagesForApi,
           },
           write,
+          {
+            beforeDone: titlePromise
+              ? async () => {
+                  try {
+                    const title = await titlePromise;
+                    await db.conversation.update({
+                      where: { id: conversationId },
+                      data: { title },
+                    });
+                    write(formatSSE("title", { title }));
+                  } catch {
+                    // skip title on failure
+                  }
+                }
+              : undefined,
+          },
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : "Stream error";
         write(
           `event: error\ndata: ${JSON.stringify({ error: message, code: "PROVIDER_ERROR" })}\n\n`,
         );
-      } finally {
-        controller.close();
       }
+      controller.close();
     },
   });
 

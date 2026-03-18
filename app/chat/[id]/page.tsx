@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useChatStore } from "@/stores/chat";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -13,6 +13,7 @@ import { useSSEStream } from "@/hooks/use-sse-stream";
 export default function ChatIdPage() {
   const params = useParams();
   const id = params.id as string;
+  const prevIdRef = useRef<string | null>(null);
 
   const {
     activeConversationId,
@@ -26,33 +27,39 @@ export default function ChatIdPage() {
     streamingSections,
   } = useChatStore();
 
-  const { send, isStreaming, error } = useSSEStream({ conversationId: id });
+  const { send, isStreaming, isWaitingForResponse, error } = useSSEStream({ conversationId: id });
 
   useEffect(() => {
     setActiveConversationId(id);
   }, [id, setActiveConversationId]);
 
   useEffect(() => {
-    if (id) {
-      fetch(`/api/conversations/${id}`)
-        .then((r) => r.json())
-        .then((data) => {
-          const serverMessages = data.messages ?? [];
-          // Don't overwrite with [] while we're streaming the first message (just navigated from /chat)
-          const { messages: currentMessages, streamingMessageId } =
-            useChatStore.getState();
-          const keepOptimistic =
-            serverMessages.length === 0 &&
-            streamingMessageId != null &&
-            currentMessages.length > 0 &&
-            currentMessages.some((m) => m.conversationId === id);
-          if (!keepOptimistic) {
-            setMessages(serverMessages);
-          }
-        })
-        .catch(() => setMessages([]));
+    if (!id) return;
+
+    // Only clear when switching from one conversation to another (not on first mount from /chat).
+    // This keeps the optimistic first message visible until the fetch resolves.
+    if (prevIdRef.current != null && prevIdRef.current !== id) {
+      setMessages([]);
     }
-    return () => setMessages([]);
+    prevIdRef.current = id;
+
+    fetch(`/api/conversations/${id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const serverMessages = data.messages ?? [];
+        // Don't overwrite with [] while we're streaming the first message (just navigated from /chat)
+        const { messages: currentMessages, streamingMessageId } =
+          useChatStore.getState();
+        const keepOptimistic =
+          serverMessages.length === 0 &&
+          streamingMessageId != null &&
+          currentMessages.length > 0 &&
+          currentMessages.some((m) => m.conversationId === id);
+        if (!keepOptimistic) {
+          setMessages(serverMessages);
+        }
+      })
+      .catch(() => setMessages([]));
   }, [id, setMessages]);
 
   useEffect(() => {
@@ -67,6 +74,8 @@ export default function ChatIdPage() {
     activeConversationId === id ? streamingMessageId : null;
   const displayStreamingSections =
     activeConversationId === id ? streamingSections : new Map();
+  const displayWaitingForResponse =
+    activeConversationId === id ? isWaitingForResponse : false;
 
   return (
     <div className="flex h-screen flex-col">
@@ -78,6 +87,7 @@ export default function ChatIdPage() {
             messages={displayMessages}
             streamingMessageId={displayStreamingId}
             streamingSections={displayStreamingSections}
+            isWaitingForResponse={displayWaitingForResponse}
             onOpenThread={(id, content, type) =>
               openSubThread(id, { content, type })
             }

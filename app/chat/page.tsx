@@ -21,6 +21,13 @@ export default function ChatPage() {
   const streamingSections = useChatStore((s) => s.streamingSections);
 
   const setConversations = useChatStore((s) => s.setConversations);
+  const setMessages = useChatStore((s) => s.setMessages);
+
+  // Clear when landing on new-chat page so we don't show another conversation's messages
+  useEffect(() => {
+    setActiveConversationId(null);
+    setMessages([]);
+  }, [setActiveConversationId, setMessages]);
 
   useEffect(() => {
     fetch("/api/conversations")
@@ -30,7 +37,7 @@ export default function ChatPage() {
   }, [setConversations]);
 
   const setStreamingError = useChatStore((s) => s.setStreamingError);
-  const { send, isStreaming, error } = useSSEStream({
+  const { send, isStreaming, isWaitingForResponse, error } = useSSEStream({
     conversationId: "",
     onCreated: (id) => {
       setActiveConversationId(id);
@@ -48,6 +55,7 @@ export default function ChatPage() {
             messages={messages}
             streamingMessageId={streamingMessageId}
             streamingSections={streamingSections}
+            isWaitingForResponse={isWaitingForResponse}
             onOpenThread={(id, content, type) =>
               openSubThread(id, { content, type })
             }
