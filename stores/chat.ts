@@ -190,11 +190,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   activeSubThreadSectionId: null,
   activeSubThreadPreview: null,
-  openSubThread: (sectionId, preview) =>
+  openSubThread: (sectionId, preview) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'stores/chat.ts:openSubThread',message:'openSubThread called',data:{sectionId,previewType:preview?.type},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
     set({
       activeSubThreadSectionId: sectionId,
       activeSubThreadPreview: preview,
-    }),
+    });
+  },
   closeSubThread: () =>
     set({ activeSubThreadSectionId: null, activeSubThreadPreview: null }),
 }));

@@ -1,7 +1,7 @@
 import { anthropic } from "./anthropic";
 import { db } from "./db";
 
-const SUMMARY_MODEL = "claude-3-5-haiku-20241022";
+const SUMMARY_MODEL = "claude-sonnet-4-6";
 const MAX_SUMMARY_TOKENS = 500;
 
 export async function generateParentSummary(

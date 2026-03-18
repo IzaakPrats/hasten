@@ -21,6 +21,10 @@ export async function POST(
 ) {
   const { sectionId } = await params;
 
+  // #region agent log
+  fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/sections/[sectionId]/threads/route.ts:POST',message:'POST create started',data:{sectionId},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
+
   const section = await db.section.findUnique({
     where: { id: sectionId },
     include: {
@@ -37,6 +41,9 @@ export async function POST(
   });
 
   if (!section) {
+    // #region agent log
+    fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/sections/[sectionId]/threads/route.ts:section',message:'section not found',data:{sectionId},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
     return NextResponse.json({ error: "Section not found" }, { status: 404 });
   }
 
@@ -44,14 +51,24 @@ export async function POST(
   const messageId = section.messageId;
 
   let parentSummary = "";
-  const existing = await db.subThread.findFirst({
-    where: { sectionId },
-    select: { parentSummary: true },
-  });
-  if (existing?.parentSummary) {
-    parentSummary = existing.parentSummary;
-  } else {
-    parentSummary = await generateParentSummary(conversationId, messageId);
+  try {
+    const existing = await db.subThread.findFirst({
+      where: { sectionId },
+      select: { parentSummary: true },
+    });
+    if (existing?.parentSummary) {
+      parentSummary = existing.parentSummary;
+    } else {
+      parentSummary = await generateParentSummary(conversationId, messageId);
+    }
+  } catch (err) {
+    // #region agent log
+    fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/sections/[sectionId]/threads/route.ts:generateParentSummary',message:'generateParentSummary threw',data:{error:err instanceof Error?err.message:String(err)},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Failed to generate summary" },
+      { status: 500 },
+    );
   }
 
   const thread = await db.subThread.create({
@@ -61,5 +78,8 @@ export async function POST(
     },
   });
 
+  // #region agent log
+  fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api/sections/[sectionId]/threads/route.ts:created',message:'subThread created',data:{threadId:thread.id},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
   return NextResponse.json(thread);
 }

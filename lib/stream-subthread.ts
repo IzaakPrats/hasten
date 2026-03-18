@@ -113,7 +113,7 @@ ${sectionContent}
   ];
 
   const stream = await anthropic.messages.create({
-    model: model as "claude-sonnet-4-20250514",
+    model: model as "claude-sonnet-4-6",
     max_tokens: 4096,
     system: systemContext,
     messages: apiMessages,

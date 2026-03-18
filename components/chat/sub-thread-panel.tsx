@@ -63,13 +63,23 @@ export function SubThreadPanel() {
 
   const loadOrCreateThread = useCallback(async (sectionId: string) => {
     setError(null);
+    // #region agent log
+    fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:loadOrCreateThread',message:'loadOrCreateThread started',data:{sectionId},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
     try {
       const listRes = await fetch(`/api/sections/${sectionId}/threads`);
+      // #region agent log
+      fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:listRes',message:'GET threads response',data:{ok:listRes.ok,status:listRes.status},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
       if (!listRes.ok) {
         const err = await listRes.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error || `Failed to load threads (${listRes.status})`);
       }
       const threads = await listRes.json();
+      const isArray = Array.isArray(threads);
+      // #region agent log
+      fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:threads',message:'threads parsed',data:{isArray,len:isArray?threads.length:0,firstId:isArray&&threads[0]?threads[0].id:undefined},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
       let id: string;
       if (threads.length > 0) {
         id = threads[0].id;
@@ -79,15 +89,24 @@ export function SubThreadPanel() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({}),
         });
+        // #region agent log
+        fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:createRes',message:'POST create response',data:{ok:createRes.ok,status:createRes.status},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
         if (!createRes.ok) {
           const err = await createRes.json().catch(() => ({}));
           throw new Error((err as { error?: string }).error || `Failed to create thread (${createRes.status})`);
         }
         const created = await createRes.json();
         id = created.id;
+        // #region agent log
+        fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:created',message:'created body',data:{createdId:id,hasId:typeof created?.id},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
       }
       setThreadId(id);
       const msgRes = await fetch(`/api/threads/${id}/messages`);
+      // #region agent log
+      fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:msgRes',message:'GET messages response',data:{ok:msgRes.ok,status:msgRes.status,threadId:id},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+      // #endregion
       if (!msgRes.ok) {
         const err = await msgRes.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error || `Failed to load messages (${msgRes.status})`);
@@ -101,6 +120,9 @@ export function SubThreadPanel() {
       );
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to load thread";
+      // #region agent log
+      fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:catch',message:'loadOrCreateThread error',data:{message},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       setError(message);
       setThreadId(null);
       setMessages([]);
@@ -286,7 +308,7 @@ export function SubThreadPanel() {
           )}
           {!threadId && !error && (
             <div className="flex justify-center py-4 text-sm text-muted-foreground">
-              Loading thread...
+              Starting thread…
             </div>
           )}
           {!threadId && error && (

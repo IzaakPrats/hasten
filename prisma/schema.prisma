@@ -10,7 +10,7 @@ datasource db {
 model Conversation {
   id        String    @id @default(uuid()) @db.Uuid
   title     String?
-  model     String    @default("claude-sonnet-4-20250514")
+  model     String    @default("claude-sonnet-4-6")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   messages  Message[]

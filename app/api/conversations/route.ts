@@ -17,7 +17,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const model = (body.model as string) || "claude-sonnet-4-20250514";
+  const model = (body.model as string) || "claude-sonnet-4-6";
   const conversation = await db.conversation.create({
     data: { model },
   });

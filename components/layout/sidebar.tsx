@@ -103,8 +103,8 @@ export function Sidebar() {
           </Link>
         </Button>
       </div>
-      <ScrollArea className="flex-1">
-        <ul className="space-y-0.5 p-2">
+      <ScrollArea className="flex-1 min-w-0">
+        <ul className="space-y-0.5 p-2 pr-12">
           {conversations.map((c) => {
             const isActive = pathname === `/chat/${c.id}`;
             const isEditing = editingId === c.id;
@@ -127,11 +127,25 @@ export function Sidebar() {
                     />
                   </div>
                 ) : (
-                  <Link href={`/chat/${c.id}`} className={rowClass}>
+                  <Link
+                    href={`/chat/${c.id}`}
+                    className={cn(rowClass, "relative overflow-hidden")}
+                  >
                     <span className="min-w-0 flex-1 truncate">
                       {c.title || "New conversation"}
                     </span>
-                    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    {/* Gradient overlay: fades row into the edge; icons sit on top */}
+                    <div
+                      aria-hidden
+                      className="absolute inset-y-0 right-0 w-16 shrink-0 bg-gradient-to-r from-transparent to-muted/30 pointer-events-none transition-opacity group-hover:opacity-0"
+                      style={{ opacity: isActive ? 0 : 1 }}
+                    />
+                    <div
+                      aria-hidden
+                      className="absolute inset-y-0 right-0 w-16 shrink-0 bg-gradient-to-r from-transparent to-accent pointer-events-none opacity-0 transition-opacity group-hover:opacity-100"
+                      style={{ opacity: isActive ? 1 : undefined }}
+                    />
+                    <div className="relative z-10 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                       <Button
                         type="button"
                         variant="ghost"

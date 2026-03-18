@@ -1,7 +1,7 @@
 import { anthropic } from "./anthropic";
 
 /** Fallback when no model provided; must be a valid Anthropic model id. */
-const DEFAULT_TITLE_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_TITLE_MODEL = "claude-sonnet-4-6";
 
 export async function generateConversationTitle(
   firstUserContent: string,
