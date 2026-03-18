@@ -1,0 +1,3 @@
+- Always implement happy path UI/UX
+- Use shadcn for all ui components.
+- Avoid using useEffect where possible

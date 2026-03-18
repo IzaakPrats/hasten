@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Conversation {
+  id        String    @id @default(uuid()) @db.Uuid
+  title     String?
+  model     String    @default("claude-sonnet-4-20250514")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String
+  tokenCountIn   Int?
+  tokenCountOut  Int?
+  createdAt      DateTime     @default(now())
+  sections       Section[]
+}
+
+model Section {
+  id        String      @id @default(uuid()) @db.Uuid
+  messageId String      @db.Uuid
+  message   Message     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  type      String
+  title     String?
+  content   String
+  order     Int
+  createdAt DateTime    @default(now())
+  threads   SubThread[]
+}
+
+model SubThread {
+  id            String             @id @default(uuid()) @db.Uuid
+  sectionId     String             @db.Uuid
+  section       Section            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  title         String?
+  parentSummary String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  messages      SubThreadMessage[]
+}
+
+model SubThreadMessage {
+  id            String    @id @default(uuid()) @db.Uuid
+  subThreadId   String    @db.Uuid
+  subThread     SubThread @relation(fields: [subThreadId], references: [id], onDelete: Cascade)
+  role          String
+  content       String
+  tokenCountIn  Int?
+  tokenCountOut Int?
+  createdAt     DateTime  @default(now())
+}
