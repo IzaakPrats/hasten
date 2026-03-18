@@ -62,29 +62,49 @@ export function SubThreadPanel() {
   }, [messages, streamingSections, isStreaming]);
 
   const loadOrCreateThread = useCallback(async (sectionId: string) => {
-    const listRes = await fetch(`/api/sections/${sectionId}/threads`);
-    const threads = await listRes.json();
-    let id: string;
-    if (threads.length > 0) {
-      id = threads[0].id;
-    } else {
-      const createRes = await fetch(`/api/sections/${sectionId}/threads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const created = await createRes.json();
-      id = created.id;
+    setError(null);
+    try {
+      const listRes = await fetch(`/api/sections/${sectionId}/threads`);
+      if (!listRes.ok) {
+        const err = await listRes.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || `Failed to load threads (${listRes.status})`);
+      }
+      const threads = await listRes.json();
+      let id: string;
+      if (threads.length > 0) {
+        id = threads[0].id;
+      } else {
+        const createRes = await fetch(`/api/sections/${sectionId}/threads`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (!createRes.ok) {
+          const err = await createRes.json().catch(() => ({}));
+          throw new Error((err as { error?: string }).error || `Failed to create thread (${createRes.status})`);
+        }
+        const created = await createRes.json();
+        id = created.id;
+      }
+      setThreadId(id);
+      const msgRes = await fetch(`/api/threads/${id}/messages`);
+      if (!msgRes.ok) {
+        const err = await msgRes.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || `Failed to load messages (${msgRes.status})`);
+      }
+      const msgs = await msgRes.json();
+      setMessages(
+        msgs.map((m: { id: string; role: string; content: string; createdAt: string }) => ({
+          ...m,
+          createdAt: new Date(m.createdAt),
+        }))
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to load thread";
+      setError(message);
+      setThreadId(null);
+      setMessages([]);
     }
-    setThreadId(id);
-    const msgRes = await fetch(`/api/threads/${id}/messages`);
-    const msgs = await msgRes.json();
-    setMessages(
-      msgs.map((m: { id: string; role: string; content: string; createdAt: string }) => ({
-        ...m,
-        createdAt: new Date(m.createdAt),
-      }))
-    );
   }, []);
 
   useEffect(() => {
@@ -264,9 +284,14 @@ export function SubThreadPanel() {
               />
             </div>
           )}
-          {!threadId && (
+          {!threadId && !error && (
             <div className="flex justify-center py-4 text-sm text-muted-foreground">
               Loading thread...
+            </div>
+          )}
+          {!threadId && error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
             </div>
           )}
           {messages.map((m) => (
