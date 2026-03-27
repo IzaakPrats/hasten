@@ -10,6 +10,12 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -19,10 +25,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Pencil, Search, Trash2 } from "lucide-react";
+import {
+  PanelLeftClose,
+  PanelLeftOpen,
+  Pencil,
+  Search,
+  SquarePen,
+  Trash2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function SidebarInner({ onRequestClose }: { onRequestClose?: () => void }) {
+function SidebarInner({
+  onRequestClose,
+  collapsed = false,
+}: {
+  onRequestClose?: () => void;
+  /** Desktop lg+: icon rail; sheet/mobile always uses full layout */
+  collapsed?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const conversations = useChatStore((s) => s.conversations);
@@ -31,6 +51,9 @@ function SidebarInner({ onRequestClose }: { onRequestClose?: () => void }) {
   const setMessages = useChatStore((s) => s.setMessages);
   const setActiveConversationId = useChatStore(
     (s) => s.setActiveConversationId,
+  );
+  const setDesktopSidebarCollapsed = useChatStore(
+    (s) => s.setDesktopSidebarCollapsed,
   );
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -119,29 +142,90 @@ function SidebarInner({ onRequestClose }: { onRequestClose?: () => void }) {
     onRequestClose?.();
   };
 
+  const onNewChatClick = (e: React.MouseEvent) => {
+    if (pathname === "/chat") {
+      e.preventDefault();
+      setActiveConversationId(null);
+      setMessages([]);
+    }
+    afterNavigate();
+  };
+
+  // Collapsed desktop rail: expand + new chat only (no conversation list)
+  if (collapsed) {
+    return (
+      <TooltipProvider delayDuration={300}>
+        <div className="flex flex-col items-center gap-2 pb-2 pt-4">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0 text-zinc-700 dark:text-zinc-300"
+                aria-expanded={false}
+                aria-label="Expand sidebar"
+                onClick={() => setDesktopSidebarCollapsed(false)}
+              >
+                <PanelLeftOpen className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Expand sidebar</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                variant="default"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+              >
+                <Link href="/chat" onClick={onNewChatClick} aria-label="New chat">
+                  <SquarePen className="h-5 w-5" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">New chat</TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <>
       <div className="px-4 pb-2 pt-5">
-        <p className="mb-4 text-lg font-semibold tracking-tight text-foreground">
-          Hasten
-        </p>
+        <div className="mb-4 flex items-start justify-between gap-2">
+          <p className="text-lg font-semibold tracking-tight text-foreground">
+            Hasten
+          </p>
+          {/* lg-only control: hide on mobile sheet via CSS so the rail toggle stays desktop-only */}
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="hidden h-9 w-9 shrink-0 text-zinc-600 hover:text-zinc-950 lg:flex dark:text-zinc-400 dark:hover:text-zinc-100"
+                  aria-expanded
+                  aria-label="Collapse sidebar"
+                  onClick={() => setDesktopSidebarCollapsed(true)}
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Collapse sidebar</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
         <Button
           asChild
           variant="default"
           size="sm"
           className="h-10 w-full lg:h-9"
         >
-          <Link
-            href="/chat"
-            onClick={(e) => {
-              if (pathname === "/chat") {
-                e.preventDefault();
-                setActiveConversationId(null);
-                setMessages([]);
-              }
-              afterNavigate();
-            }}
-          >
+          <Link href="/chat" onClick={onNewChatClick}>
             New Chat
           </Link>
         </Button>
@@ -272,11 +356,20 @@ export function Sidebar() {
   const isLg = useIsLg();
   const isSidebarOpen = useChatStore((s) => s.isSidebarOpen);
   const setSidebarOpen = useChatStore((s) => s.setSidebarOpen);
+  const isDesktopSidebarCollapsed = useChatStore(
+    (s) => s.isDesktopSidebarCollapsed,
+  );
 
   if (isLg) {
     return (
-      <aside className="flex w-64 shrink-0 flex-col border-r bg-zinc-100 dark:bg-zinc-950">
-        <SidebarInner />
+      <aside
+        className={cn(
+          // width transition: full panel vs narrow rail (desktop)
+          "flex shrink-0 flex-col overflow-hidden border-r bg-zinc-100 transition-[width] duration-200 ease-out dark:bg-zinc-950",
+          isDesktopSidebarCollapsed ? "w-14" : "w-64",
+        )}
+      >
+        <SidebarInner collapsed={isDesktopSidebarCollapsed} />
       </aside>
     );
   }

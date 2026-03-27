@@ -81,6 +81,10 @@ interface ChatState {
   /** Mobile drawer: opening sidebar closes sub-thread; opening sub-thread closes sidebar */
   isSidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  /** Desktop (lg+): narrow icon rail vs full width */
+  isDesktopSidebarCollapsed: boolean;
+  setDesktopSidebarCollapsed: (collapsed: boolean) => void;
+  toggleDesktopSidebarCollapsed: () => void;
 }
 
 const initialState = {
@@ -93,6 +97,7 @@ const initialState = {
   activeSubThreadSectionId: null,
   activeSubThreadPreview: null,
   isSidebarOpen: false,
+  isDesktopSidebarCollapsed: false,
 };
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -259,5 +264,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             activeSubThreadPreview: null,
           }
         : {}),
+    })),
+
+  setDesktopSidebarCollapsed: (collapsed) =>
+    set({ isDesktopSidebarCollapsed: collapsed }),
+
+  toggleDesktopSidebarCollapsed: () =>
+    set((s) => ({
+      isDesktopSidebarCollapsed: !s.isDesktopSidebarCollapsed,
     })),
 }));
