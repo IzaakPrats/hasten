@@ -159,7 +159,7 @@ function SidebarInner({ onRequestClose }: { onRequestClose?: () => void }) {
         )}
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        <ul className="space-y-2 px-4 pb-4">
+        <ul className="min-w-0 space-y-2 px-4 pb-4">
           {conversations.length === 0 && (
             <li className="rounded-lg border border-dashed border-zinc-300 bg-white/60 px-3 py-4 text-center text-sm text-muted-foreground dark:border-zinc-700 dark:bg-zinc-900/40">
               No conversations yet. Start with{" "}
@@ -175,7 +175,8 @@ function SidebarInner({ onRequestClose }: { onRequestClose?: () => void }) {
             const isActive = pathname === `/chat/${c.id}`;
             const isEditing = editingId === c.id;
             const rowClass = cn(
-              "flex min-h-11 items-center gap-1 rounded-lg border px-3 py-2 text-sm text-zinc-950 shadow-sm transition-colors dark:text-zinc-950",
+              // min-w-0 + w-full so long titles truncate inside the sidebar instead of clipping (flex default min-width)
+              "flex min-h-11 w-full min-w-0 items-center gap-1 rounded-lg border px-3 py-2 text-sm text-zinc-950 shadow-sm transition-colors dark:text-zinc-950",
               isActive
                 ? "border-zinc-300 bg-zinc-100"
                 : "border-zinc-200/90 bg-white hover:bg-zinc-50",
@@ -201,7 +202,10 @@ function SidebarInner({ onRequestClose }: { onRequestClose?: () => void }) {
                     className={cn(rowClass, "group relative")}
                     onClick={afterNavigate}
                   >
-                    <span className="min-w-0 flex-1 truncate">
+                    <span
+                      className="min-w-0 flex-1 truncate"
+                      title={displayTitle}
+                    >
                       {displayTitle}
                     </span>
                     <div className="flex shrink-0 items-center gap-0.5 max-lg:opacity-100 lg:pointer-events-none lg:opacity-0 lg:transition-opacity lg:duration-200 lg:group-hover:pointer-events-auto lg:group-hover:opacity-100 lg:group-focus-within:pointer-events-auto lg:group-focus-within:opacity-100">
@@ -271,7 +275,7 @@ export function Sidebar() {
 
   if (isLg) {
     return (
-      <aside className="flex w-56 shrink-0 flex-col border-r bg-zinc-100 dark:bg-zinc-950">
+      <aside className="flex w-64 shrink-0 flex-col border-r bg-zinc-100 dark:bg-zinc-950">
         <SidebarInner />
       </aside>
     );
