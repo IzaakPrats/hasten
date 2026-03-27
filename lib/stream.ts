@@ -2,7 +2,10 @@ import { v4 as uuidv4 } from "uuid";
 import { anthropic } from "./anthropic";
 import { db } from "./db";
 import { SECTION_SYSTEM_PROMPT } from "./prompts";
-import { parseSectionStream, collectSectionsFromEvents } from "./section-parser";
+import {
+  parseSectionStream,
+  collectSectionsFromEvents,
+} from "./section-parser";
 import type { ParsedSectionForDb } from "./section-parser";
 import type { SectionParserEvent } from "./section-parser";
 
@@ -81,7 +84,7 @@ export interface StreamConversationOptions {
 export async function streamConversationResponse(
   params: StreamConversationParams,
   write: (chunk: string) => void,
-  options?: StreamConversationOptions
+  options?: StreamConversationOptions,
 ): Promise<StreamResult> {
   const { conversationId, model, messages } = params;
   const assistantMessageId = uuidv4();
@@ -107,10 +110,16 @@ export async function streamConversationResponse(
 
   const streamLoop = async () => {
     for await (const event of stream as AsyncIterable<StreamEvent>) {
-      if (event.type === "message_start" && event.message?.usage?.input_tokens != null) {
+      if (
+        event.type === "message_start" &&
+        event.message?.usage?.input_tokens != null
+      ) {
         tokensIn = event.message.usage.input_tokens;
       }
-      if (event.type === "message_delta" && event.usage?.output_tokens != null) {
+      if (
+        event.type === "message_delta" &&
+        event.usage?.output_tokens != null
+      ) {
         tokensOut = event.usage.output_tokens;
       }
       if (
@@ -134,10 +143,15 @@ export async function streamConversationResponse(
             type: ev.data.type,
             order: ev.data.order,
             ...(ev.data.title != null && { title: ev.data.title }),
-          })
+          }),
         );
       } else if (ev.kind === "delta") {
-        write(formatSSE("delta", { sectionId: ev.data.sectionId, content: ev.data.content }));
+        write(
+          formatSSE("delta", {
+            sectionId: ev.data.sectionId,
+            content: ev.data.content,
+          }),
+        );
       } else if (ev.kind === "section_end") {
         write(formatSSE("section_end", { sectionId: ev.data.sectionId }));
       }
@@ -184,7 +198,7 @@ export async function streamConversationResponse(
     formatSSE("done", {
       messageId: assistantMessageId,
       usage: { tokensIn, tokensOut },
-    })
+    }),
   );
 
   return {

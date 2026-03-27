@@ -65,6 +65,8 @@ interface ChatState {
       order: number;
     }[],
   ) => void;
+  /** Abort in-flight stream: keep partial sections as one assistant message, or clear if empty */
+  cancelStreaming: () => void;
   setStreamingError: (error: string | null) => void;
   setConversationTitle: (conversationId: string, title: string) => void;
   removeConversation: (conversationId: string) => void;
@@ -76,6 +78,9 @@ interface ChatState {
     preview: { content: string; type: SectionType },
   ) => void;
   closeSubThread: () => void;
+  /** Mobile drawer: opening sidebar closes sub-thread; opening sub-thread closes sidebar */
+  isSidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
 }
 
 const initialState = {
@@ -87,6 +92,7 @@ const initialState = {
   error: null,
   activeSubThreadSectionId: null,
   activeSubThreadPreview: null,
+  isSidebarOpen: false,
 };
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -151,7 +157,52 @@ export const useChatStore = create<ChatState>((set, get) => ({
           id: s.id,
           messageId,
           type: s.type,
-          title: s.title ?? undefined,
+          title: s.title ?? null,
+          content: s.content,
+          order: i,
+          createdAt: new Date(),
+        })),
+      };
+      return {
+        messages: [...state.messages, assistantMessage],
+        streamingMessageId: null,
+        streamingSections: new Map(),
+        error: null,
+      };
+    }),
+
+  cancelStreaming: () =>
+    set((state) => {
+      if (state.streamingMessageId == null && state.streamingSections.size === 0) {
+        return { error: null };
+      }
+      const sorted = Array.from(state.streamingSections.values()).sort(
+        (a, b) => a.order - b.order,
+      );
+      if (sorted.length === 0) {
+        return {
+          streamingMessageId: null,
+          streamingSections: new Map(),
+          error: null,
+        };
+      }
+      const messageId = crypto.randomUUID();
+      const cid = state.activeConversationId ?? "";
+      const assistantMessage: MessageWithSections = {
+        id: messageId,
+        conversationId: cid,
+        role: "assistant",
+        content: sorted
+          .map((s) => (s.title ? s.title + "\n\n" + s.content : s.content))
+          .join("\n\n"),
+        tokenCountIn: null,
+        tokenCountOut: null,
+        createdAt: new Date(),
+        sections: sorted.map((s, i) => ({
+          id: s.id,
+          messageId,
+          type: s.type,
+          title: s.title ?? null,
           content: s.content,
           order: i,
           createdAt: new Date(),
@@ -190,15 +241,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   activeSubThreadSectionId: null,
   activeSubThreadPreview: null,
-  openSubThread: (sectionId, preview) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'stores/chat.ts:openSubThread',message:'openSubThread called',data:{sectionId,previewType:preview?.type},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+  openSubThread: (sectionId, preview) =>
     set({
       activeSubThreadSectionId: sectionId,
       activeSubThreadPreview: preview,
-    });
-  },
+      isSidebarOpen: false,
+    }),
   closeSubThread: () =>
     set({ activeSubThreadSectionId: null, activeSubThreadPreview: null }),
+
+  setSidebarOpen: (open) =>
+    set((state) => ({
+      isSidebarOpen: open,
+      ...(open
+        ? {
+            activeSubThreadSectionId: null,
+            activeSubThreadPreview: null,
+          }
+        : {}),
+    })),
 }));

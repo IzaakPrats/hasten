@@ -40,7 +40,7 @@ export async function POST(
     );
   }
 
-  const userMessage = await db.message.create({
+  await db.message.create({
     data: {
       conversationId,
       role: "user",

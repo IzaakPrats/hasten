@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useChatStore } from "@/stores/chat";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -14,6 +14,12 @@ export default function ChatIdPage() {
   const params = useParams();
   const id = params.id as string;
   const prevIdRef = useRef<string | null>(null);
+  const [messagesLoading, setMessagesLoading] = useState(true);
+  const [composerInject, setComposerInject] = useState<{
+    key: number;
+    text: string;
+  } | null>(null);
+  const clearComposerInject = useCallback(() => setComposerInject(null), []);
 
   const {
     activeConversationId,
@@ -27,7 +33,9 @@ export default function ChatIdPage() {
     streamingSections,
   } = useChatStore();
 
-  const { send, isStreaming, isWaitingForResponse, error } = useSSEStream({ conversationId: id });
+  const { send, stop, isStreaming, isWaitingForResponse, error } = useSSEStream({
+    conversationId: id,
+  });
 
   useEffect(() => {
     setActiveConversationId(id);
@@ -43,6 +51,7 @@ export default function ChatIdPage() {
     }
     prevIdRef.current = id;
 
+    setMessagesLoading(true);
     fetch(`/api/conversations/${id}`)
       .then((r) => r.json())
       .then((data) => {
@@ -59,7 +68,8 @@ export default function ChatIdPage() {
           setMessages(serverMessages);
         }
       })
-      .catch(() => setMessages([]));
+      .catch(() => setMessages([]))
+      .finally(() => setMessagesLoading(false));
   }, [id, setMessages]);
 
   useEffect(() => {
@@ -78,9 +88,9 @@ export default function ChatIdPage() {
     activeConversationId === id ? isWaitingForResponse : false;
 
   return (
-    <div className="flex h-screen flex-col">
-      <Header />
-      <div className="flex flex-1 overflow-hidden">
+    <div className="flex h-[100dvh] min-h-0 flex-col">
+      <Header activeConversationId={id} />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <MessageList
@@ -88,18 +98,28 @@ export default function ChatIdPage() {
             streamingMessageId={displayStreamingId}
             streamingSections={displayStreamingSections}
             isWaitingForResponse={displayWaitingForResponse}
+            loading={messagesLoading}
+            onPickStarter={(text) =>
+              setComposerInject({ key: Date.now(), text })
+            }
             onOpenThread={(id, content, type) =>
               openSubThread(id, { content, type })
             }
           />
           <MessageInput
             onSend={send}
-            disabled={isStreaming}
+            disabled={isStreaming || isWaitingForResponse}
+            isStreaming={isStreaming}
+            onStop={stop}
             error={error ?? undefined}
             onClearError={() => setStreamingError(null)}
+            injectText={composerInject}
+            onInjectConsumed={clearComposerInject}
           />
         </main>
-        <SubThreadPanel />
+        <div className="w-0 shrink-0 overflow-visible lg:flex lg:w-full lg:max-w-md lg:flex-none">
+          <SubThreadPanel />
+        </div>
       </div>
     </div>
   );

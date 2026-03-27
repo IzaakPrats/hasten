@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useChatStore } from "@/stores/chat";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -12,6 +12,11 @@ import { useSSEStream } from "@/hooks/use-sse-stream";
 
 export default function ChatPage() {
   const router = useRouter();
+  const [composerInject, setComposerInject] = useState<{
+    key: number;
+    text: string;
+  } | null>(null);
+  const clearComposerInject = useCallback(() => setComposerInject(null), []);
   const setActiveConversationId = useChatStore(
     (s) => s.setActiveConversationId,
   );
@@ -37,7 +42,7 @@ export default function ChatPage() {
   }, [setConversations]);
 
   const setStreamingError = useChatStore((s) => s.setStreamingError);
-  const { send, isStreaming, isWaitingForResponse, error } = useSSEStream({
+  const { send, stop, isStreaming, isWaitingForResponse, error } = useSSEStream({
     conversationId: "",
     onCreated: (id) => {
       setActiveConversationId(id);
@@ -46,9 +51,9 @@ export default function ChatPage() {
   });
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-[100dvh] min-h-0 flex-col">
       <Header />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <MessageList
@@ -56,18 +61,27 @@ export default function ChatPage() {
             streamingMessageId={streamingMessageId}
             streamingSections={streamingSections}
             isWaitingForResponse={isWaitingForResponse}
+            onPickStarter={(text) =>
+              setComposerInject({ key: Date.now(), text })
+            }
             onOpenThread={(id, content, type) =>
               openSubThread(id, { content, type })
             }
           />
           <MessageInput
             onSend={send}
-            disabled={isStreaming}
+            disabled={isStreaming || isWaitingForResponse}
+            isStreaming={isStreaming}
+            onStop={stop}
             error={error ?? undefined}
             onClearError={() => setStreamingError(null)}
+            injectText={composerInject}
+            onInjectConsumed={clearComposerInject}
           />
         </main>
-        <SubThreadPanel />
+        <div className="w-0 shrink-0 overflow-visible lg:flex lg:w-full lg:max-w-md lg:flex-none">
+          <SubThreadPanel />
+        </div>
       </div>
     </div>
   );

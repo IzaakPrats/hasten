@@ -6,6 +6,7 @@ import { SectionCard } from "@/components/chat/section-card";
 import { MessageInput } from "@/components/chat/message-input";
 import { CopyButton } from "@/components/chat/copy-button";
 import { useChatStore } from "@/stores/chat";
+import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 import type { SectionType } from "@/lib/types";
 
@@ -53,6 +54,30 @@ export function SubThreadPanel() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const stopThreadStream = useCallback(() => {
+    abortRef.current?.abort();
+    setStreamingSections((sections) => {
+      const sorted = Array.from(sections.values()).sort((a, b) => a.order - b.order);
+      if (sorted.length > 0) {
+        const fullContent = sorted
+          .map((s) => (s.title ? s.title + "\n\n" + s.content : s.content))
+          .join("\n\n");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: fullContent,
+            createdAt: new Date(),
+          },
+        ]);
+      }
+      return new Map();
+    });
+    setIsStreaming(false);
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -63,23 +88,13 @@ export function SubThreadPanel() {
 
   const loadOrCreateThread = useCallback(async (sectionId: string) => {
     setError(null);
-    // #region agent log
-    fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:loadOrCreateThread',message:'loadOrCreateThread started',data:{sectionId},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     try {
       const listRes = await fetch(`/api/sections/${sectionId}/threads`);
-      // #region agent log
-      fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:listRes',message:'GET threads response',data:{ok:listRes.ok,status:listRes.status},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
       if (!listRes.ok) {
         const err = await listRes.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error || `Failed to load threads (${listRes.status})`);
       }
       const threads = await listRes.json();
-      const isArray = Array.isArray(threads);
-      // #region agent log
-      fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:threads',message:'threads parsed',data:{isArray,len:isArray?threads.length:0,firstId:isArray&&threads[0]?threads[0].id:undefined},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
       let id: string;
       if (threads.length > 0) {
         id = threads[0].id;
@@ -89,24 +104,15 @@ export function SubThreadPanel() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({}),
         });
-        // #region agent log
-        fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:createRes',message:'POST create response',data:{ok:createRes.ok,status:createRes.status},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
         if (!createRes.ok) {
           const err = await createRes.json().catch(() => ({}));
           throw new Error((err as { error?: string }).error || `Failed to create thread (${createRes.status})`);
         }
         const created = await createRes.json();
         id = created.id;
-        // #region agent log
-        fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:created',message:'created body',data:{createdId:id,hasId:typeof created?.id},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
       }
       setThreadId(id);
       const msgRes = await fetch(`/api/threads/${id}/messages`);
-      // #region agent log
-      fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:msgRes',message:'GET messages response',data:{ok:msgRes.ok,status:msgRes.status,threadId:id},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-      // #endregion
       if (!msgRes.ok) {
         const err = await msgRes.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error || `Failed to load messages (${msgRes.status})`);
@@ -120,9 +126,6 @@ export function SubThreadPanel() {
       );
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to load thread";
-      // #region agent log
-      fetch('http://127.0.0.1:7252/ingest/0d67d51d-f9c8-4683-b59e-711f580f6b30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sub-thread-panel.tsx:catch',message:'loadOrCreateThread error',data:{message},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       setError(message);
       setThreadId(null);
       setMessages([]);
@@ -141,6 +144,10 @@ export function SubThreadPanel() {
   const send = useCallback(
     async (content: string) => {
       if (!threadId || !content.trim() || isStreaming) return;
+
+      const ac = new AbortController();
+      const { signal } = ac;
+      abortRef.current = ac;
 
       setError(null);
       setMessages((prev) => [
@@ -164,26 +171,37 @@ export function SubThreadPanel() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content }),
+          signal,
         });
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          setError(err.error || "Failed to send");
-          setMessages((prev) => prev.slice(0, -1));
-          setIsStreaming(false);
+          if (!signal.aborted) {
+            const err = await res.json().catch(() => ({}));
+            setError((err as { error?: string }).error || "Failed to send");
+            setMessages((prev) => prev.slice(0, -1));
+          }
           return;
         }
         const reader = res.body?.getReader();
         if (!reader) {
-          setError("No response body");
-          setMessages((prev) => prev.slice(0, -1));
-          setIsStreaming(false);
+          if (!signal.aborted) {
+            setError("No response body");
+            setMessages((prev) => prev.slice(0, -1));
+          }
           return;
         }
         const decoder = new TextDecoder();
         let buffer = "";
         while (true) {
-          const { done, value } = await reader.read();
+          let readResult: ReadableStreamReadResult<Uint8Array>;
+          try {
+            readResult = await reader.read();
+          } catch {
+            if (signal.aborted) break;
+            throw new Error("Stream read failed");
+          }
+          const { done, value } = readResult;
           if (done) break;
+          if (signal.aborted) break;
           buffer += decoder.decode(value, { stream: true });
           const blocks = buffer.split("\n\n");
           buffer = blocks.pop() ?? "";
@@ -244,6 +262,7 @@ export function SubThreadPanel() {
                 });
               }
             } else if (event === "done") {
+              if (signal.aborted) break;
               const fullContent = sections
                 .sort((a, b) => a.order - b.order)
                 .map((s) => (s.title ? s.title + "\n\n" + s.content : s.content))
@@ -259,14 +278,23 @@ export function SubThreadPanel() {
               ]);
               setStreamingSections(new Map());
             } else if (event === "error" && data.error) {
-              setError(data.error as string);
+              if (!signal.aborted) {
+                setError(data.error as string);
+              }
             }
           }
         }
       } catch (e) {
+        if (
+          signal.aborted ||
+          (e instanceof DOMException && e.name === "AbortError")
+        ) {
+          return;
+        }
         setError(e instanceof Error ? e.message : "Stream error");
         setMessages((prev) => prev.slice(0, -1));
       } finally {
+        abortRef.current = null;
         setIsStreaming(false);
       }
     },
@@ -276,24 +304,34 @@ export function SubThreadPanel() {
   if (!activeSectionId) return null;
 
   return (
-    <div className="flex w-full max-w-md flex-shrink-0 flex-col border-l bg-muted/30">
-      <div className="flex items-center justify-between border-b px-3 py-2">
-        <span className="text-sm font-medium">Thread</span>
+    <div
+      className={cn(
+        "z-40 flex w-full max-w-none flex-shrink-0 flex-col bg-background lg:relative lg:z-auto lg:max-w-md lg:border-l lg:bg-muted/30",
+        "fixed inset-0 max-h-[100dvh] lg:static lg:inset-auto lg:max-h-none",
+      )}
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
+        <span className="min-w-0 truncate text-sm font-medium" title={activePreview?.content}>
+          {activePreview
+            ? activePreview.content.trim().slice(0, 48) +
+              (activePreview.content.length > 48 ? "…" : "")
+            : "Thread"}
+        </span>
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-11 w-11 shrink-0 lg:h-8 lg:w-8 lg:border-transparent lg:bg-transparent lg:shadow-none lg:hover:bg-accent"
           onClick={closeSubThread}
         >
-          <X className="h-4 w-4" />
+          <X className="h-5 w-5 lg:h-4 lg:w-4" />
           <span className="sr-only">Close thread</span>
         </Button>
       </div>
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
           ref={scrollRef}
-          className="flex-1 space-y-3 overflow-y-auto p-3"
+          className="flex-1 space-y-3 overflow-y-auto p-3 sm:p-3"
         >
           {activePreview && (
             <div className="rounded-md border bg-background p-2">
@@ -319,30 +357,38 @@ export function SubThreadPanel() {
           {messages.map((m) => (
             <div key={m.id} className="space-y-1">
               {m.role === "user" ? (
-                <div className="group relative ml-auto max-w-[85%]">
-                  <div className="rounded-lg bg-muted px-2 py-1.5 text-sm pr-9">
+                <div className="group ml-auto flex max-w-[85%] flex-col items-end gap-1">
+                  <div className="rounded-lg bg-muted px-2 py-1.5 text-sm">
                     {m.content}
                   </div>
-                  <div className="absolute right-1 top-1 opacity-70 group-hover:opacity-100">
-                    <CopyButton text={m.content} size="icon" className="h-6 w-6" label="Copy message" />
+                  <div className="hidden justify-end opacity-70 max-lg:flex lg:group-hover:flex lg:group-focus-within:flex">
+                    <CopyButton
+                      text={m.content}
+                      size="icon"
+                      className="h-10 w-10 lg:h-6 lg:w-6"
+                      label="Copy message"
+                    />
                   </div>
                 </div>
               ) : (
-                <div className="group relative max-w-[85%] flex flex-col gap-1">
-                  <div className="absolute right-0 top-0 z-10 opacity-70 group-hover:opacity-100">
-                    <CopyButton text={m.content} size="icon" className="h-6 w-6" label="Copy full response" />
-                  </div>
-                  <div className="pt-6 space-y-1">
-                    {m.content.split(/\n\n/).map((para, i) => (
-                      <div key={i} className="group/para relative">
-                        <p className="text-sm pr-8">
+                <div className="group flex max-w-[85%] flex-col gap-1">
+                  <div className="space-y-2">
+                    {m.content
+                      .split(/\n\n/)
+                      .filter((p) => p.trim())
+                      .map((para, i) => (
+                        <p key={i} className="whitespace-pre-wrap text-sm">
                           {para}
                         </p>
-                        <div className="absolute right-0 top-0 opacity-70 group-hover/para:opacity-100">
-                          <CopyButton text={para} size="icon" className="h-5 w-5" label="Copy paragraph" />
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                  </div>
+                  <div className="hidden justify-end opacity-70 max-lg:flex lg:group-hover:flex lg:group-focus-within:flex">
+                    <CopyButton
+                      text={m.content}
+                      size="icon"
+                      className="h-10 w-10 lg:h-6 lg:w-6"
+                      label="Copy response"
+                    />
                   </div>
                 </div>
               )}
@@ -356,7 +402,7 @@ export function SubThreadPanel() {
                   <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:200ms]" />
                   <span className="size-1.5 animate-pulse rounded-full bg-current [animation-delay:400ms]" />
                 </span>
-                <span>Thinking...</span>
+                <span>Thinking…</span>
               </div>
             </div>
           )}
@@ -369,6 +415,8 @@ export function SubThreadPanel() {
         <MessageInput
           onSend={send}
           disabled={isStreaming || !threadId}
+          isStreaming={isStreaming}
+          onStop={stopThreadStream}
           error={error ?? undefined}
           onClearError={() => setError(null)}
         />

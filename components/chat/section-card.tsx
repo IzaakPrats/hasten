@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare } from "lucide-react";
 import { CodeBlock } from "@/components/chat/code-block";
 import { CopyButton } from "@/components/chat/copy-button";
+import { cn } from "@/lib/utils";
 import type { SectionType } from "@/lib/types";
 
 interface SectionCardProps {
@@ -27,44 +27,47 @@ export function SectionCard({
   isThreadOrigin = false,
   onOpenThread,
 }: SectionCardProps) {
-  const [hover, setHover] = useState(false);
   const showThread = sectionId && onOpenThread;
   const fullContent = title ? title + "\n\n" + content : content;
   const wrap = (inner: React.ReactNode) => (
     <div
-      className={`group relative rounded-md transition-colors ${isThreadOrigin ? "ring-2 ring-primary/60 bg-primary/5 p-4" : ""}`}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      {inner}
-      {(hover || threadCount > 0) && (
-        <div className="absolute right-0 top-0 flex items-center gap-1.5">
-          <CopyButton text={fullContent} label="Copy section" />
-          {showThread && (
-            <>
-              {threadCount > 0 && (
-                <Badge
-                  variant="secondary"
-                  className="text-xs"
-                  title={`${threadCount} message${threadCount === 1 ? "" : "s"} in thread`}
-                >
-                  {threadCount}
-                </Badge>
-              )}
-              <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-2 text-muted-foreground hover:text-foreground"
-            onClick={() => onOpenThread(sectionId, fullContent, type)}
-          >
-            <MessageSquare className="h-3.5 w-3.5" />
-            Reply
-          </Button>
-            </>
-          )}
-        </div>
+      className={cn(
+        "group flex flex-col rounded-md transition-colors",
+        isThreadOrigin && "bg-primary/5 p-4 ring-2 ring-primary/60",
       )}
+    >
+      <div className="min-w-0">{inner}</div>
+      <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5 border-t border-border/50 pt-2">
+        <CopyButton
+          text={fullContent}
+          label="Copy section"
+          size="icon"
+          className="h-10 w-10 shrink-0 lg:h-9 lg:w-9 lg:px-2"
+        />
+        {showThread && (
+          <>
+            {threadCount > 0 && (
+              <Badge
+                variant="secondary"
+                className="text-xs"
+                title={`${threadCount} message${threadCount === 1 ? "" : "s"} in thread`}
+              >
+                {threadCount}
+              </Badge>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-10 min-h-10 shrink-0 gap-1 px-3 text-muted-foreground hover:text-foreground lg:h-7 lg:min-h-0 lg:px-2"
+              onClick={() => onOpenThread(sectionId, fullContent, type)}
+            >
+              <MessageSquare className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
+              Reply
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 

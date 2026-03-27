@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useChatStore } from "@/stores/chat";
 import type { SectionType } from "@/lib/types";
 
@@ -30,6 +30,7 @@ export function useSSEStream(options: UseSSEStreamOptions) {
   const { conversationId, onCreated } = options;
   const [isStreaming, setIsStreaming] = useState(false);
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const {
     addUserMessage,
@@ -43,91 +44,108 @@ export function useSSEStream(options: UseSSEStreamOptions) {
     addConversation,
   } = useChatStore();
 
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    useChatStore.getState().cancelStreaming();
+    setIsStreaming(false);
+    setIsWaitingForResponse(false);
+  }, []);
+
   const send = useCallback(
     async (content: string) => {
       if (!content.trim() || isStreaming) return;
 
+      const ac = new AbortController();
+      const { signal } = ac;
+      abortRef.current = ac;
+
       setIsWaitingForResponse(true);
       let activeConversationId = conversationId;
-      if (!activeConversationId) {
-        const createRes = await fetch("/api/conversations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        if (!createRes.ok) {
-          setStreamingError("Failed to create conversation");
-          setIsWaitingForResponse(false);
+      try {
+        if (!activeConversationId) {
+          const createRes = await fetch("/api/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+            signal,
+          });
+          if (!createRes.ok) {
+            if (!signal.aborted) {
+              setStreamingError("Failed to create conversation");
+            }
+            return;
+          }
+          const conv = await createRes.json();
+          activeConversationId = conv.id;
+          addConversation({
+            id: conv.id,
+            title: conv.title ?? null,
+            model: conv.model,
+            createdAt: conv.createdAt,
+            updatedAt: conv.updatedAt,
+          });
+          onCreated?.(activeConversationId);
+        }
+
+        const userMessage = {
+          id: crypto.randomUUID(),
+          conversationId: activeConversationId,
+          role: "user",
+          content,
+          tokenCountIn: null,
+          tokenCountOut: null,
+          createdAt: new Date(),
+          sections: [],
+        };
+        addUserMessage(userMessage);
+        setIsStreaming(true);
+        startStreaming("streaming");
+        setIsWaitingForResponse(false);
+
+        const res = await fetch(
+          `/api/conversations/${activeConversationId}/messages`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content }),
+            signal,
+          },
+        );
+
+        if (!res.ok) {
+          if (!signal.aborted) {
+            const err = await res.json().catch(() => ({}));
+            setStreamingError(
+              (err as { error?: string }).error || "Failed to send message",
+            );
+          }
           return;
         }
-        const conv = await createRes.json();
-        activeConversationId = conv.id;
-        addConversation({
-          id: conv.id,
-          title: conv.title ?? null,
-          model: conv.model,
-          createdAt: conv.createdAt,
-          updatedAt: conv.updatedAt,
-        });
-        onCreated?.(activeConversationId);
-      }
 
-      const userMessage = {
-        id: crypto.randomUUID(),
-        conversationId: activeConversationId,
-        role: "user",
-        content,
-        tokenCountIn: null,
-        tokenCountOut: null,
-        createdAt: new Date(),
-        sections: [],
-      };
-      addUserMessage(userMessage);
-      setIsStreaming(true);
-      startStreaming("streaming");
-      setIsWaitingForResponse(false);
+        const reader = res.body?.getReader();
+        if (!reader) {
+          if (!signal.aborted) {
+            setStreamingError("No response body");
+          }
+          return;
+        }
 
-      const res = await fetch(
-        `/api/conversations/${activeConversationId}/messages`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content }),
-        },
-      );
+        const decoder = new TextDecoder();
+        let buffer = "";
+        const sections: {
+          id: string;
+          type: SectionType;
+          title?: string;
+          content: string;
+          order: number;
+        }[] = [];
+        const sectionContent: Map<string, string> = new Map();
+        const sectionMeta: Map<
+          string,
+          { type: SectionType; order: number; title?: string }
+        > = new Map();
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setStreamingError(err.error || "Failed to send message");
-        setIsStreaming(false);
-        setIsWaitingForResponse(false);
-        return;
-      }
-
-      const reader = res.body?.getReader();
-      if (!reader) {
-        setStreamingError("No response body");
-        setIsStreaming(false);
-        setIsWaitingForResponse(false);
-        return;
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      const sections: {
-        id: string;
-        type: SectionType;
-        title?: string;
-        content: string;
-        order: number;
-      }[] = [];
-      const sectionContent: Map<string, string> = new Map();
-      const sectionMeta: Map<
-        string,
-        { type: SectionType; order: number; title?: string }
-      > = new Map();
-
-      try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -159,33 +177,42 @@ export function useSSEStream(options: UseSSEStreamOptions) {
               sectionMeta.set(data.sectionId as string, {
                 type: data.type as SectionType,
                 order: data.order as number,
-                title: typeof data.title === "string" ? data.title : undefined,
+                title:
+                  typeof data.title === "string" ? data.title : undefined,
               });
             } else if (event === "delta" && data.sectionId && data.content) {
               appendStreamingDelta(
                 data.sectionId as string,
                 data.content as string,
               );
-              const prev = sectionContent.get(data.sectionId as string) ?? "";
+              const prev =
+                sectionContent.get(data.sectionId as string) ?? "";
               sectionContent.set(
                 data.sectionId as string,
                 prev + (data.content as string),
               );
             } else if (event === "section_end" && data.sectionId) {
               const sid = data.sectionId as string;
-              const content = sectionContent.get(sid) ?? "";
+              const c = sectionContent.get(sid) ?? "";
               const meta = sectionMeta.get(sid);
               if (meta) {
                 sections.push({
                   id: sid,
                   type: meta.type,
                   title: meta.title,
-                  content,
+                  content: c,
                   order: meta.order,
                 });
               }
-            } else if (event === "title" && typeof data.title === "string" && data.title.trim()) {
-              setConversationTitle(activeConversationId, data.title.trim());
+            } else if (
+              event === "title" &&
+              typeof data.title === "string" &&
+              data.title.trim()
+            ) {
+              setConversationTitle(
+                activeConversationId,
+                data.title.trim(),
+              );
             } else if (event === "done" && data.messageId) {
               finishStreaming(data.messageId as string, sections);
               fetch("/api/conversations")
@@ -198,8 +225,15 @@ export function useSSEStream(options: UseSSEStreamOptions) {
           }
         }
       } catch (e) {
+        if (
+          signal.aborted ||
+          (e instanceof DOMException && e.name === "AbortError")
+        ) {
+          return;
+        }
         setStreamingError(e instanceof Error ? e.message : "Stream error");
       } finally {
+        abortRef.current = null;
         setIsStreaming(false);
         setIsWaitingForResponse(false);
       }
@@ -222,5 +256,5 @@ export function useSSEStream(options: UseSSEStreamOptions) {
 
   const error = useChatStore((s) => s.error);
 
-  return { send, isStreaming, isWaitingForResponse, error };
+  return { send, stop, isStreaming, isWaitingForResponse, error };
 }

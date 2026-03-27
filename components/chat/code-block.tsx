@@ -16,29 +16,33 @@ function extractLangAndCode(raw: string): { lang: string; code: string } {
   return { lang: "text", code: raw.trimEnd() };
 }
 
+const SUPPORTED_LANGS = [
+  "typescript",
+  "javascript",
+  "json",
+  "yaml",
+  "bash",
+  "python",
+  "html",
+  "css",
+  "markdown",
+  "plaintext",
+] as const;
+
 export function CodeBlock({ content }: CodeBlockProps) {
   const [html, setHtml] = useState<string | null>(null);
   const { lang, code } = extractLangAndCode(content);
-  const supportedLangs = [
-    "typescript",
-    "javascript",
-    "json",
-    "yaml",
-    "bash",
-    "python",
-    "html",
-    "css",
-    "markdown",
-    "plaintext",
-  ];
-  const langId = lang && supportedLangs.includes(lang) ? lang : "plaintext";
+  const langId =
+    lang && SUPPORTED_LANGS.includes(lang as (typeof SUPPORTED_LANGS)[number])
+      ? lang
+      : "plaintext";
 
   useEffect(() => {
     let cancelled = false;
     import("shiki").then(({ createHighlighter }) => {
       createHighlighter({
         themes: ["github-dark"],
-        langs: supportedLangs as (
+        langs: [...SUPPORTED_LANGS] as (
           | "typescript"
           | "javascript"
           | "json"
